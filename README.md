@@ -62,10 +62,12 @@ You can easily install SwiftType via our Homebrew tap:
 
 ```bash
 brew tap VariableThe/SwiftType https://github.com/VariableThe/SwiftType
+brew trust variablethe/swifttype
 brew install --cask swifttype
 ```
 
-Our Homebrew Cask automatically clears macOS Gatekeeper quarantine flags (`xattr -cr`) during postflight installation.
+> [!NOTE]
+> `brew trust variablethe/swifttype` is required by Homebrew to allow our postflight script (`xattr -cr /Applications/SwiftType.app`) to automatically clear macOS Gatekeeper quarantine flags after installation.
 
 ### Option 2: Manual Download (`.zip`)
 

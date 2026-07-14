@@ -7,7 +7,7 @@ cask "swifttype" do
   desc "Fast, local, intelligent, system-wide autocorrect for macOS"
   homepage "https://github.com/VariableThe/SwiftType"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "SwiftType.app"
 
