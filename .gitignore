@@ -15,3 +15,5 @@
 /*.dSYM
 /DerivedData
 /.swiftpm
+/build
+*.zip

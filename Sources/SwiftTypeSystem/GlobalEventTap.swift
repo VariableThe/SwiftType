@@ -14,6 +14,7 @@ public final class GlobalEventTap: @unchecked Sendable {
 
     private var currentWordBuffer = ""
     private var contextHistory = [String]()
+    private var isAtStartOfLineOrSentence: Bool = true
     
     public var engine: SmartCorrectionEngine?
     public var settings: SettingsManager?
@@ -144,12 +145,13 @@ public final class GlobalEventTap: @unchecked Sendable {
             lock.lock()
             let wordToEvaluate = currentWordBuffer
             currentWordBuffer = ""
+            let startOfLineOrSentence = isAtStartOfLineOrSentence || contextHistory.isEmpty || contextHistory.last?.hasSuffix(".") == true || contextHistory.last?.hasSuffix("!") == true || contextHistory.last?.hasSuffix("?") == true
             lock.unlock()
 
-            if wordToEvaluate.count >= 2 {
+            if wordToEvaluate.count >= 1 {
                 let startTime = DispatchTime.now()
                 if let engine = self.engine, let settings = self.settings,
-                   let best = engine.evaluate(word: wordToEvaluate, contextBefore: contextHistory, threshold: settings.confidenceThreshold) {
+                   let best = engine.evaluate(word: wordToEvaluate, contextBefore: contextHistory, threshold: settings.confidenceThreshold, isStartOfSentenceOrLine: startOfLineOrSentence) {
                     
                     let endTime = DispatchTime.now()
                     let latencyMs = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
@@ -172,20 +174,40 @@ public final class GlobalEventTap: @unchecked Sendable {
                         lock.lock()
                         contextHistory.append(best.word)
                         if contextHistory.count > 5 { contextHistory.removeFirst() }
+                        if firstChar == "\n" || firstChar == "\r" || firstChar == "." || firstChar == "!" || firstChar == "?" {
+                            isAtStartOfLineOrSentence = true
+                        } else {
+                            isAtStartOfLineOrSentence = false
+                        }
                         lock.unlock()
 
                         // Since our replacement via simulated keystrokes posted the completionStr already, we consume the original trigger event!
                         return nil
                     }
                 } else {
-                    // No correction performed -> check auto-learning
+                    // No correction performed -> check auto-learning and transition state
                     lock.lock()
-                    contextHistory.append(wordToEvaluate)
-                    if contextHistory.count > 5 { contextHistory.removeFirst() }
+                    if !wordToEvaluate.isEmpty {
+                        contextHistory.append(wordToEvaluate)
+                        if contextHistory.count > 5 { contextHistory.removeFirst() }
+                    }
+                    if firstChar == "\n" || firstChar == "\r" || firstChar == "." || firstChar == "!" || firstChar == "?" {
+                        isAtStartOfLineOrSentence = true
+                    } else {
+                        isAtStartOfLineOrSentence = false
+                    }
                     lock.unlock()
 
-                    autoLearning?.observeUncorrectedWord(wordToEvaluate)
+                    if wordToEvaluate.count >= 2 {
+                        autoLearning?.observeUncorrectedWord(wordToEvaluate)
+                    }
                 }
+            } else {
+                lock.lock()
+                if firstChar == "\n" || firstChar == "\r" || firstChar == "." || firstChar == "!" || firstChar == "?" {
+                    isAtStartOfLineOrSentence = true
+                }
+                lock.unlock()
             }
             return Unmanaged.passUnretained(event)
         }
