@@ -97,4 +97,32 @@ final class SmartCorrectionEngineTests: XCTestCase {
         let strict = engine.evaluate(word: "xyzabc123qwerty", threshold: 0.95)
         XCTAssertNil(strict, "Should never replace when confidence is below threshold")
     }
+
+    func testCasePreservationAndAutoCapitalization() {
+        // 1. All-uppercase typo preservation
+        let allCaps = engine.evaluate(word: "TEH", threshold: 0.90)
+        XCTAssertNotNil(allCaps)
+        XCTAssertEqual(allCaps?.word, "THE")
+
+        // 2. Title case typo preservation
+        let titleCase = engine.evaluate(word: "Teh", threshold: 0.90)
+        XCTAssertNotNil(titleCase)
+        XCTAssertEqual(titleCase?.word, "The")
+
+        // 3. Auto-capitalization at start of line/sentence for exact match
+        let startOfLineExact = engine.evaluate(word: "the", threshold: 0.90, isStartOfSentenceOrLine: true)
+        XCTAssertNotNil(startOfLineExact)
+        XCTAssertEqual(startOfLineExact?.word, "The")
+        XCTAssertEqual(startOfLineExact?.sourceStage, "AutoCapitalization")
+
+        // 4. No auto-capitalization in the middle of a sentence for exact match
+        let midSentenceExact = engine.evaluate(word: "the", threshold: 0.90, isStartOfSentenceOrLine: false)
+        XCTAssertNil(midSentenceExact, "Exact match mid-sentence should not be replaced")
+    }
+
+    func testSingleLetterIAutoCapitalization() {
+        let singleI = engine.evaluate(word: "i", threshold: 0.90, isStartOfSentenceOrLine: false)
+        XCTAssertNotNil(singleI)
+        XCTAssertEqual(singleI?.word, "I")
+    }
 }

@@ -83,9 +83,38 @@ public final class SmartCorrectionEngine: @unchecked Sendable {
         bkTree.insert(word)
     }
 
+    /// Preserves uppercase or title case from original input, auto-capitalizes at line/sentence starts, and capitalizes standalone pronoun 'i'.
+    public static func preserveCase(candidate: String, originalInput: String, isStartOfSentenceOrLine: Bool = false) -> String {
+        guard !candidate.isEmpty else { return candidate }
+        
+        // 0. Single letter 'i' pronoun in English should always be capitalized 'I' when standalone
+        if candidate.lowercased() == "i" && candidate.count == 1 {
+            return "I"
+        }
+
+        let originalLetters = originalInput.filter { $0.isLetter }
+        // 1. All Uppercase check: if original had at least 2 letters and all cased characters were uppercase ("TEH", "RECIEVE", "APLE")
+        if originalLetters.count > 1 && originalLetters.allSatisfy({ $0.isUppercase }) {
+            return candidate.uppercased()
+        }
+        
+        // 2. Title case check or Auto-capitalization check:
+        // If the original input started with a capital letter ("Teh", "Recieve"), or if we are at start of sentence/line
+        let firstLetterIsUpper = originalInput.first?.isUppercase == true
+        if firstLetterIsUpper || isStartOfSentenceOrLine {
+            var chars = Array(candidate)
+            if let first = chars.first {
+                chars[0] = Character(String(first).uppercased())
+                return String(chars)
+            }
+        }
+        
+        return candidate
+    }
+
     /// Main correction evaluation entrypoint ($O(1)$ or sub-5ms latency).
     /// Evaluates input word through all registered correction stages and returns the best candidate if its confidence exceeds threshold.
-    public func evaluate(word: String, contextBefore: [String] = [], threshold: Double = 0.95) -> CorrectionCandidate? {
+    public func evaluate(word: String, contextBefore: [String] = [], threshold: Double = 0.95, isStartOfSentenceOrLine: Bool = false) -> CorrectionCandidate? {
         prepareIndexIfNeeded()
         let cleanWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanWord.isEmpty else { return nil }
@@ -95,7 +124,8 @@ public final class SmartCorrectionEngine: @unchecked Sendable {
             switch rule.type {
             case .alwaysReplace:
                 if let repl = rule.replacement, !repl.isEmpty {
-                    return CorrectionCandidate(word: repl, confidence: 1.0, editDistance: 0, sourceStage: "IgnoreRule")
+                    let formatted = SmartCorrectionEngine.preserveCase(candidate: repl, originalInput: cleanWord, isStartOfSentenceOrLine: isStartOfSentenceOrLine)
+                    return CorrectionCandidate(word: formatted, confidence: 1.0, editDistance: 0, sourceStage: "IgnoreRule")
                 }
             case .neverSuggest, .once, .forever:
                 return nil
@@ -107,18 +137,25 @@ public final class SmartCorrectionEngine: @unchecked Sendable {
         for stage in stages {
             candidates = stage.process(input: cleanWord, contextBefore: contextBefore, currentCandidates: candidates, engine: self)
             
-            // Short-circuit: if exact stage returns a candidate with confidence == 1.0 and 0 edit distance, return immediately!
-            if stage.stageName == "Stage1_ExactLookup", candidates.contains(where: { $0.confidence == 1.0 && $0.editDistance == 0 }) {
-                return nil // Exact match in dictionary, no correction needed unless overridden by User Frequency below!
+            // Short-circuit: if exact stage returns a candidate with confidence == 1.0 and 0 edit distance
+            if stage.stageName == "Stage1_ExactLookup", let exactMatch = candidates.first(where: { $0.confidence == 1.0 && $0.editDistance == 0 }) {
+                let formattedWord = SmartCorrectionEngine.preserveCase(candidate: exactMatch.word, originalInput: cleanWord, isStartOfSentenceOrLine: isStartOfSentenceOrLine)
+                if formattedWord != cleanWord {
+                    return CorrectionCandidate(word: formattedWord, confidence: 1.0, editDistance: 0, sourceStage: "AutoCapitalization")
+                }
+                return nil // Exact match in dictionary, case is already correct!
             }
         }
 
         // Filter and return the top candidate if above threshold
-        guard let best = candidates.max(by: { $0.confidence < $1.confidence }) else {
+        guard let bestRaw = candidates.max(by: { $0.confidence < $1.confidence }) else {
             return nil
         }
         
-        if best.confidence >= threshold && best.word.lowercased() != cleanWord.lowercased() {
+        let formattedCandidate = SmartCorrectionEngine.preserveCase(candidate: bestRaw.word, originalInput: cleanWord, isStartOfSentenceOrLine: isStartOfSentenceOrLine)
+        let best = CorrectionCandidate(word: formattedCandidate, confidence: bestRaw.confidence, editDistance: bestRaw.editDistance, sourceStage: bestRaw.sourceStage)
+
+        if best.confidence >= threshold && best.word != cleanWord {
             return best
         }
         return nil
