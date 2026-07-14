@@ -122,7 +122,8 @@ public final class BuiltinDictionaries: @unchecked Sendable {
     /// Additions to the core English dictionary that must also be backfilled for existing databases.
     private func seedEnglishSupplements() throws {
         let words: [String: Int] = [
-            "sure": 1800
+            "sure": 1800,
+            "second": 1200
         ]
         for (w, f) in words {
             try db.insertWord(w, dictionary: DictionaryCategory.english.rawValue, frequency: f)

@@ -36,6 +36,12 @@ final class SmartCorrectionEngineTests: XCTestCase {
         XCTAssertNil(engine.evaluate(word: "Sure", threshold: 0.95))
     }
 
+    func testSecnodCorrectsToSecond() {
+        let candidate = engine.evaluate(word: "Secnod", threshold: 0.95)
+        XCTAssertNotNil(candidate)
+        XCTAssertEqual(candidate?.word, "Second")
+    }
+
     func testCommonTypoExemptions() {
         let typos: [String: String] = [
             "teh": "the",

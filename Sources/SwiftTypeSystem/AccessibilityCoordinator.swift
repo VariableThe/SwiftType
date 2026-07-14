@@ -15,11 +15,9 @@ public final class AccessibilityCoordinator: @unchecked Sendable {
         AXIsProcessTrusted()
     }
 
-    /// Prompts the user for Accessibility permissions and optionally opens System Settings.
+    /// Opens System Settings for Accessibility permissions without showing the extra system prompt.
     public func requestPermissions(openSystemSettings: Bool = true) -> Bool {
-        let promptKey = "AXTrustedCheckOptionPrompt" as CFString
-        let options = [promptKey: kCFBooleanTrue!] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(options)
+        let trusted = isTrusted
         if !trusted && openSystemSettings {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                 NSWorkspace.shared.open(url)

@@ -166,14 +166,15 @@ public final class MenuBarController: NSObject {
     @objc public func showOnboarding() {
         if onboardingWindow == nil {
             let view = OnboardingView { [weak self] in
-                self?.onboardingWindow?.close()
-                self?.onboardingWindow = nil
-                self?.updateStatusIcon()
+                guard let self else { return }
+                self.onboardingWindow?.close()
+                self.onboardingWindow = nil
+                self.updateStatusIcon()
                 GlobalEventTap.shared.configure(
-                    engine: self!.engine,
-                    settings: self!.settings,
-                    statistics: self!.statistics,
-                    autoLearning: self!.autoLearning
+                    engine: self.engine,
+                    settings: self.settings,
+                    statistics: self.statistics,
+                    autoLearning: self.autoLearning
                 )
                 GlobalEventTap.shared.start()
             }

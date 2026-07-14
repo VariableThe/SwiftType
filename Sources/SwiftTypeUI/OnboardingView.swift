@@ -5,6 +5,8 @@ import SwiftTypeSystem
 /// Onboarding screen displaying privacy guarantees and requesting macOS Accessibility permissions.
 public struct OnboardingView: View {
     @State private var isTrusted: Bool = AccessibilityCoordinator.shared.isTrusted
+    @State private var hasRequestedPermissions = false
+    @State private var didComplete = false
     let onCompleted: () -> Void
 
     public init(onCompleted: @escaping () -> Void) {
@@ -66,10 +68,18 @@ public struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
 
+                if hasRequestedPermissions && !isTrusted {
+                    Text("After enabling SwiftType in System Settings, return here and check again. If macOS still reports it as untrusted, quit and reopen SwiftType once.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+
                 Button(action: requestPermissions) {
                     HStack {
                         Image(systemName: isTrusted ? "checkmark.circle.fill" : "hand.raised.fill")
-                        Text(isTrusted ? "Permissions Granted" : "Grant Accessibility Permissions")
+                        Text(isTrusted ? "Permissions Granted" : (hasRequestedPermissions ? "Open Accessibility Settings" : "Grant Accessibility Permissions"))
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
@@ -84,7 +94,7 @@ public struct OnboardingView: View {
                 } else {
                     Button("Check Permissions Status") {
                         isTrusted = AccessibilityCoordinator.shared.isTrusted
-                        if isTrusted { onCompleted() }
+                        completeIfTrusted()
                     }
                     .buttonStyle(.borderless)
                     .foregroundColor(.secondary)
@@ -97,20 +107,29 @@ public struct OnboardingView: View {
         .frame(width: 580, height: 640)
         .onAppear {
             isTrusted = AccessibilityCoordinator.shared.isTrusted
+            completeIfTrusted()
         }
     }
 
     private func requestPermissions() {
+        hasRequestedPermissions = true
         _ = AccessibilityCoordinator.shared.requestPermissions(openSystemSettings: true)
         Task { @MainActor in
             for _ in 0..<60 {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 if AccessibilityCoordinator.shared.isTrusted {
                     self.isTrusted = true
+                    self.completeIfTrusted()
                     break
                 }
             }
         }
+    }
+
+    private func completeIfTrusted() {
+        guard isTrusted, !didComplete else { return }
+        didComplete = true
+        onCompleted()
     }
 }
 
