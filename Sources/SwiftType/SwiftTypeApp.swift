@@ -5,18 +5,16 @@ import SwiftTypeSystem
 import SwiftTypeUI
 
 @main
-struct SwiftTypeApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
-    }
-}
-
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static let sharedDelegate = AppDelegate()
+
+    static func main() {
+        let app = NSApplication.shared
+        app.delegate = sharedDelegate
+        app.run()
+    }
+
     var menuBarController: MenuBarController?
     var database: SQLiteDatabase!
     var settings: SettingsManager!

@@ -15,6 +15,7 @@ public final class MenuBarController: NSObject {
     private var engine: SmartCorrectionEngine
 
     private var dashboardWindow: NSWindow?
+    private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
 
     public init(settings: SettingsManager, statistics: StatisticsService, autoLearning: AutoLearningManager, database: SQLiteDatabase, engine: SmartCorrectionEngine) {
@@ -34,9 +35,11 @@ public final class MenuBarController: NSObject {
         }
         rebuildMenu()
 
-        // Check permissions on startup
+        // Check permissions on startup asynchronously after run loop initialization
         if !AccessibilityCoordinator.shared.isTrusted {
-            showOnboarding()
+            DispatchQueue.main.async { [weak self] in
+                self?.showOnboarding()
+            }
         } else {
             GlobalEventTap.shared.configure(engine: engine, settings: settings, statistics: statistics, autoLearning: autoLearning)
             GlobalEventTap.shared.start()
@@ -141,18 +144,22 @@ public final class MenuBarController: NSObject {
     }
 
     @objc public func openSettings() {
-        let view = SettingsView(settings: settings, statistics: statistics, autoLearning: autoLearning, database: database, engine: engine)
-        let controller = NSHostingController(rootView: view)
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "SwiftType Settings & Preferences"
-        window.contentViewController = controller
-        window.center()
-        window.makeKeyAndOrderFront(nil)
+        if settingsWindow == nil {
+            let view = SettingsView(settings: settings, statistics: statistics, autoLearning: autoLearning, database: database, engine: engine)
+            let controller = NSHostingController(rootView: view)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
+                styleMask: [.titled, .closable, .miniaturizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "SwiftType Settings & Preferences"
+            window.contentViewController = controller
+            window.center()
+            window.isReleasedWhenClosed = false
+            self.settingsWindow = window
+        }
+        settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
