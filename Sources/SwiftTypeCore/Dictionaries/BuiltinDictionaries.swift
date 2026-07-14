@@ -27,12 +27,14 @@ public final class BuiltinDictionaries: @unchecked Sendable {
 
         // Check if database already has words seeded
         if let check = db.getWordFrequency("the"), check > 0 {
+            try seedEnglishSupplements()
             loadMemoryCache()
             return
         }
 
         try db.transaction {
             try seedEnglish()
+            try seedEnglishSupplements()
             try seedProgramming()
             try seedTechnical()
             try seedCybersecurity()
@@ -111,6 +113,16 @@ public final class BuiltinDictionaries: @unchecked Sendable {
             "garbage": 450, "recommend": 400, "definitely": 400, "address": 450, "occurred": 350, "accommodate": 350,
             "until": 300, "sense": 300, "separate": 300, "receive": 350, "tomorrow": 350, "truly": 250, "weird": 250,
             "whether": 300, "aggressive": 250, "apparent": 250, "friend": 400, "government": 400, "happened": 350
+        ]
+        for (w, f) in words {
+            try db.insertWord(w, dictionary: DictionaryCategory.english.rawValue, frequency: f)
+        }
+    }
+
+    /// Additions to the core English dictionary that must also be backfilled for existing databases.
+    private func seedEnglishSupplements() throws {
+        let words: [String: Int] = [
+            "sure": 1800
         ]
         for (w, f) in words {
             try db.insertWord(w, dictionary: DictionaryCategory.english.rawValue, frequency: f)

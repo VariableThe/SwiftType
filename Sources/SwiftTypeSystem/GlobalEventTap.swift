@@ -20,6 +20,7 @@ public final class GlobalEventTap: @unchecked Sendable {
     public var settings: SettingsManager?
     public var statistics: StatisticsService?
     public var autoLearning: AutoLearningManager?
+    private let spellingGate = SystemSpellingGate()
 
     public init() {}
 
@@ -149,6 +150,11 @@ public final class GlobalEventTap: @unchecked Sendable {
             lock.unlock()
 
             if wordToEvaluate.count >= 1 {
+                guard spellingGate.shouldEvaluateForCorrection(wordToEvaluate) else {
+                    recordUncorrectedWord(wordToEvaluate, completionChar: firstChar)
+                    return Unmanaged.passUnretained(event)
+                }
+
                 let startTime = DispatchTime.now()
                 if let engine = self.engine, let settings = self.settings,
                    let best = engine.evaluate(word: wordToEvaluate, contextBefore: contextHistory, threshold: settings.confidenceThreshold, isStartOfSentenceOrLine: startOfLineOrSentence) {
@@ -186,17 +192,7 @@ public final class GlobalEventTap: @unchecked Sendable {
                     }
                 } else {
                     // No correction performed -> check auto-learning and transition state
-                    lock.lock()
-                    if !wordToEvaluate.isEmpty {
-                        contextHistory.append(wordToEvaluate)
-                        if contextHistory.count > 5 { contextHistory.removeFirst() }
-                    }
-                    if firstChar == "\n" || firstChar == "\r" || firstChar == "." || firstChar == "!" || firstChar == "?" {
-                        isAtStartOfLineOrSentence = true
-                    } else {
-                        isAtStartOfLineOrSentence = false
-                    }
-                    lock.unlock()
+                    recordUncorrectedWord(wordToEvaluate, completionChar: firstChar)
 
                     if wordToEvaluate.count >= 2 {
                         autoLearning?.observeUncorrectedWord(wordToEvaluate)
@@ -231,5 +227,55 @@ public final class GlobalEventTap: @unchecked Sendable {
         currentWordBuffer = ""
         lock.unlock()
         UndoManagerService.shared.clearRecentCorrection()
+    }
+
+    private func recordUncorrectedWord(_ word: String, completionChar: Character) {
+        lock.lock()
+        if !word.isEmpty {
+            contextHistory.append(word)
+            if contextHistory.count > 5 { contextHistory.removeFirst() }
+        }
+        if completionChar == "\n" || completionChar == "\r" || completionChar == "." || completionChar == "!" || completionChar == "?" {
+            isAtStartOfLineOrSentence = true
+        } else {
+            isAtStartOfLineOrSentence = false
+        }
+        lock.unlock()
+    }
+}
+
+private final class SystemSpellingGate {
+    private let checker = NSSpellChecker.shared
+    private let lock = NSLock()
+    private var cache = [String: Bool]()
+    private var cacheOrder = [String]()
+    private let maxCacheSize = 512
+
+    func shouldEvaluateForCorrection(_ word: String) -> Bool {
+        let clean = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard clean.count >= 2 else { return false }
+        guard clean.allSatisfy({ $0.isLetter }) else { return false }
+
+        let key = clean.lowercased()
+        lock.lock()
+        if let cached = cache[key] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        let nsRange = checker.checkSpelling(of: clean, startingAt: 0)
+        let isMisspelled = nsRange.location != NSNotFound && nsRange.length > 0
+
+        lock.lock()
+        cache[key] = isMisspelled
+        cacheOrder.append(key)
+        if cacheOrder.count > maxCacheSize {
+            let removed = cacheOrder.removeFirst()
+            cache.removeValue(forKey: removed)
+        }
+        lock.unlock()
+
+        return isMisspelled
     }
 }

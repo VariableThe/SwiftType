@@ -31,6 +31,11 @@ final class SmartCorrectionEngineTests: XCTestCase {
         XCTAssertNil(resultThe)
     }
 
+    func testSureIsNotCorrectedToWere() {
+        XCTAssertNil(engine.evaluate(word: "sure", threshold: 0.95))
+        XCTAssertNil(engine.evaluate(word: "Sure", threshold: 0.95))
+    }
+
     func testCommonTypoExemptions() {
         let typos: [String: String] = [
             "teh": "the",
