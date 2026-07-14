@@ -65,6 +65,14 @@ public struct StatisticsSnapshot: Sendable, Equatable {
         return (Double(correct) / Double(correctionsLifetime)) * 100.0
     }
     
+    public var totalCorrections: Int { correctionsLifetime }
+    public var totalKeystrokesSaved: Int { correctionsLifetime * 3 }
+    public var estimatedSecondsSaved: Double { Double(totalKeystrokesSaved) * 0.2 }
+    public var estimatedWPMBoost: Double {
+        guard correctionsLifetime > 0 else { return 0.0 }
+        return min(25.0, Double(correctionsLifetime) * 0.05)
+    }
+    
     public init(correctionsToday: Int = 0, correctionsLifetime: Int = 0, wordsLearned: Int = 0, falseCorrections: Int = 0, totalLatencyMs: Double = 0.0, totalLatencyCount: Int = 0, lastDate: String = "") {
         self.correctionsToday = correctionsToday
         self.correctionsLifetime = correctionsLifetime

@@ -13,6 +13,10 @@ public final class SettingsManager: ObservableObject, @unchecked Sendable {
     private var cancellables = Set<AnyCancellable>()
     private let lock = NSLock()
 
+    @Published public var enableAutocorrect: Bool {
+        didSet { saveSetting(key: "enableAutocorrect", value: enableAutocorrect ? "true" : "false") }
+    }
+    
     @Published public var confidenceThreshold: Double {
         didSet { saveSetting(key: "confidenceThreshold", value: "\(confidenceThreshold)") }
     }
@@ -51,11 +55,41 @@ public final class SettingsManager: ObservableObject, @unchecked Sendable {
             saveSetting(key: "enabledDictionaries", value: joined)
         }
     }
+    
+    public var playSoundOnCorrection: Bool {
+        get { correctionSounds }
+        set { correctionSounds = newValue }
+    }
+    
+    public var enableProgrammingDict: Bool {
+        get { enabledDictionaries.contains("Programming") }
+        set {
+            if newValue { enabledDictionaries.insert("Programming") }
+            else { enabledDictionaries.remove("Programming") }
+        }
+    }
+    
+    public var enableTechnicalDict: Bool {
+        get { enabledDictionaries.contains("Technical") }
+        set {
+            if newValue { enabledDictionaries.insert("Technical") }
+            else { enabledDictionaries.remove("Technical") }
+        }
+    }
+    
+    public var enableScientificDict: Bool {
+        get { enabledDictionaries.contains("Scientific") }
+        set {
+            if newValue { enabledDictionaries.insert("Scientific") }
+            else { enabledDictionaries.remove("Scientific") }
+        }
+    }
 
     public init(database: SQLiteDatabase) {
         self.db = database
         
         // Defaults
+        var initialAutocorrect = true
         var initialConfidence = 0.95
         var initialLearning = true
         var initialLearningThreshold = 3
@@ -66,6 +100,9 @@ public final class SettingsManager: ObservableObject, @unchecked Sendable {
         var initialLanguage = "English"
         var initialDictionaries: Set<String> = ["English", "Programming", "Technical", "User"]
 
+        if let autoStr = db.getSetting(key: "enableAutocorrect") {
+            initialAutocorrect = (autoStr == "true")
+        }
         if let confStr = db.getSetting(key: "confidenceThreshold"), let val = Double(confStr) {
             initialConfidence = val
         }
@@ -95,6 +132,7 @@ public final class SettingsManager: ObservableObject, @unchecked Sendable {
             initialDictionaries = Set(items)
         }
 
+        self.enableAutocorrect = initialAutocorrect
         self.confidenceThreshold = initialConfidence
         self.enableLearning = initialLearning
         self.learningThreshold = initialLearningThreshold

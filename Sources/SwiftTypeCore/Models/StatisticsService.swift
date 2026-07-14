@@ -7,6 +7,7 @@ public final class StatisticsService: ObservableObject, @unchecked Sendable {
     private let lock = NSLock()
 
     @Published public private(set) var snapshot: StatisticsSnapshot
+    public var metrics: StatisticsSnapshot { snapshot }
 
     public init(database: SQLiteDatabase) {
         self.db = database
