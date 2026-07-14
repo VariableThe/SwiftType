@@ -150,53 +150,54 @@ public final class GlobalEventTap: @unchecked Sendable {
             lock.unlock()
 
             if wordToEvaluate.count >= 1 {
-                guard spellingGate.shouldEvaluateForCorrection(wordToEvaluate) else {
-                    recordUncorrectedWord(wordToEvaluate, completionChar: firstChar)
-                    return Unmanaged.passUnretained(event)
+                let startTime = DispatchTime.now()
+                let spellingAssessment = spellingGate.assess(wordToEvaluate)
+                if let engine = self.engine, let settings = self.settings {
+                    let threshold = correctionThreshold(base: settings.confidenceThreshold, spellingAssessment: spellingAssessment)
+                    let candidate = engine.evaluate(word: wordToEvaluate, contextBefore: contextHistory, threshold: threshold, isStartOfSentenceOrLine: startOfLineOrSentence)
+                    let best = acceptedCandidate(candidate, spellingAssessment: spellingAssessment)
+
+                    if let best {
+                    
+                        let endTime = DispatchTime.now()
+                        let latencyMs = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
+
+                        let completionStr = String(firstChar)
+                        // Perform replacement
+                        let replaced = AccessibilityCoordinator.shared.replaceWordInstantaneous(
+                            originalLength: wordToEvaluate.count,
+                            correctedWord: best.word,
+                            completionChar: completionStr,
+                            useSimulatedKeystrokes: true
+                        )
+
+                        if replaced {
+                            if let id = try? engine.database.recordHistory(originalWord: wordToEvaluate, correctedWord: best.word) {
+                                UndoManagerService.shared.recordCorrection(id: id, originalWord: wordToEvaluate, correctedWord: best.word, completionChar: completionStr)
+                            }
+                            statistics?.recordCorrection(latencyMs: latencyMs, learnedWord: false)
+                            
+                            lock.lock()
+                            contextHistory.append(best.word)
+                            if contextHistory.count > 5 { contextHistory.removeFirst() }
+                            if firstChar == "\n" || firstChar == "\r" || firstChar == "." || firstChar == "!" || firstChar == "?" {
+                                isAtStartOfLineOrSentence = true
+                            } else {
+                                isAtStartOfLineOrSentence = false
+                            }
+                            lock.unlock()
+
+                            // Since our replacement via simulated keystrokes posted the completionStr already, we consume the original trigger event!
+                            return nil
+                        }
+                    }
                 }
 
-                let startTime = DispatchTime.now()
-                if let engine = self.engine, let settings = self.settings,
-                   let best = engine.evaluate(word: wordToEvaluate, contextBefore: contextHistory, threshold: settings.confidenceThreshold, isStartOfSentenceOrLine: startOfLineOrSentence) {
-                    
-                    let endTime = DispatchTime.now()
-                    let latencyMs = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
+                // No correction performed -> check auto-learning and transition state
+                recordUncorrectedWord(wordToEvaluate, completionChar: firstChar)
 
-                    let completionStr = String(firstChar)
-                    // Perform replacement
-                    let replaced = AccessibilityCoordinator.shared.replaceWordInstantaneous(
-                        originalLength: wordToEvaluate.count,
-                        correctedWord: best.word,
-                        completionChar: completionStr,
-                        useSimulatedKeystrokes: true
-                    )
-
-                    if replaced {
-                        if let id = try? engine.database.recordHistory(originalWord: wordToEvaluate, correctedWord: best.word) {
-                            UndoManagerService.shared.recordCorrection(id: id, originalWord: wordToEvaluate, correctedWord: best.word, completionChar: completionStr)
-                        }
-                        statistics?.recordCorrection(latencyMs: latencyMs, learnedWord: false)
-                        
-                        lock.lock()
-                        contextHistory.append(best.word)
-                        if contextHistory.count > 5 { contextHistory.removeFirst() }
-                        if firstChar == "\n" || firstChar == "\r" || firstChar == "." || firstChar == "!" || firstChar == "?" {
-                            isAtStartOfLineOrSentence = true
-                        } else {
-                            isAtStartOfLineOrSentence = false
-                        }
-                        lock.unlock()
-
-                        // Since our replacement via simulated keystrokes posted the completionStr already, we consume the original trigger event!
-                        return nil
-                    }
-                } else {
-                    // No correction performed -> check auto-learning and transition state
-                    recordUncorrectedWord(wordToEvaluate, completionChar: firstChar)
-
-                    if wordToEvaluate.count >= 2 {
-                        autoLearning?.observeUncorrectedWord(wordToEvaluate)
-                    }
+                if wordToEvaluate.count >= 2 {
+                    autoLearning?.observeUncorrectedWord(wordToEvaluate)
                 }
             } else {
                 lock.lock()
@@ -242,19 +243,53 @@ public final class GlobalEventTap: @unchecked Sendable {
         }
         lock.unlock()
     }
+
+    private func correctionThreshold(base: Double, spellingAssessment: SystemSpellingAssessment) -> Double {
+        switch spellingAssessment {
+        case .misspelled:
+            return base
+        case .valid, .notCheckable:
+            return max(base, 0.99)
+        }
+    }
+
+    private func acceptedCandidate(_ candidate: CorrectionCandidate?, spellingAssessment: SystemSpellingAssessment) -> CorrectionCandidate? {
+        guard let candidate else { return nil }
+        switch spellingAssessment {
+        case .misspelled:
+            return candidate
+        case .valid, .notCheckable:
+            return isHighTrustWithoutSystemMisspelling(candidate) ? candidate : nil
+        }
+    }
+
+    private func isHighTrustWithoutSystemMisspelling(_ candidate: CorrectionCandidate) -> Bool {
+        switch candidate.sourceStage {
+        case "IgnoreRule", "AutoCapitalization", "Stage1_ExactLookup":
+            return candidate.confidence >= 0.99
+        default:
+            return false
+        }
+    }
+}
+
+private enum SystemSpellingAssessment {
+    case misspelled
+    case valid
+    case notCheckable
 }
 
 private final class SystemSpellingGate {
     private let checker = NSSpellChecker.shared
     private let lock = NSLock()
-    private var cache = [String: Bool]()
+    private var cache = [String: SystemSpellingAssessment]()
     private var cacheOrder = [String]()
     private let maxCacheSize = 512
 
-    func shouldEvaluateForCorrection(_ word: String) -> Bool {
+    func assess(_ word: String) -> SystemSpellingAssessment {
         let clean = word.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard clean.count >= 2 else { return false }
-        guard clean.allSatisfy({ $0.isLetter }) else { return false }
+        guard clean.count >= 2 else { return .notCheckable }
+        guard clean.allSatisfy({ $0.isLetter }) else { return .notCheckable }
 
         let key = clean.lowercased()
         lock.lock()
@@ -265,10 +300,10 @@ private final class SystemSpellingGate {
         lock.unlock()
 
         let nsRange = checker.checkSpelling(of: clean, startingAt: 0)
-        let isMisspelled = nsRange.location != NSNotFound && nsRange.length > 0
+        let assessment: SystemSpellingAssessment = (nsRange.location != NSNotFound && nsRange.length > 0) ? .misspelled : .valid
 
         lock.lock()
-        cache[key] = isMisspelled
+        cache[key] = assessment
         cacheOrder.append(key)
         if cacheOrder.count > maxCacheSize {
             let removed = cacheOrder.removeFirst()
@@ -276,6 +311,6 @@ private final class SystemSpellingGate {
         }
         lock.unlock()
 
-        return isMisspelled
+        return assessment
     }
 }
