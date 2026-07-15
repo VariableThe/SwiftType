@@ -29,10 +29,8 @@ public final class MenuBarController: NSObject {
     }
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "keyboard.fill", accessibilityDescription: "SwiftType Autocorrect")
-        }
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        updateStatusIcon()
         rebuildMenu()
 
         // Check permissions on startup asynchronously after run loop initialization
@@ -103,14 +101,39 @@ public final class MenuBarController: NSObject {
 
     public func updateStatusIcon() {
         guard let button = statusItem.button else { return }
-        if !AccessibilityCoordinator.shared.isTrusted {
-            button.image = NSImage(systemSymbolName: "keyboard.badge.exclamationmark", accessibilityDescription: "Permissions Required")
-        } else if !settings.enableAutocorrect || !GlobalEventTap.shared.isMonitoring {
-            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Paused")
+        let isActive = AccessibilityCoordinator.shared.isTrusted && settings.enableAutocorrect && GlobalEventTap.shared.isMonitoring
+        button.image = menuBarLogo(for: button)
+        button.image?.accessibilityDescription = isActive ? "SwiftType Active" : "SwiftType Paused"
+        button.image?.size = NSSize(width: 18, height: 18)
+        button.contentTintColor = nil
+        if isActive {
+            button.alphaValue = 1.0
         } else {
-            button.image = NSImage(systemSymbolName: "keyboard.fill", accessibilityDescription: "Active")
+            button.alphaValue = 0.55
         }
         rebuildMenu()
+    }
+
+    private func menuBarLogo(for button: NSStatusBarButton) -> NSImage? {
+        let appearance = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
+        let fileName = appearance == .darkAqua ? "Menubar logo white" : "Menubar logo black"
+        if let image = loadLogo(named: fileName) {
+            image.isTemplate = false
+            return image
+        }
+        return NSImage(systemSymbolName: "keyboard.fill", accessibilityDescription: "SwiftType")
+    }
+
+    private func loadLogo(named name: String) -> NSImage? {
+        if let resourceURL = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Logos"),
+           let image = NSImage(contentsOf: resourceURL) {
+            return image
+        }
+
+        let devURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Assets/Logos")
+            .appendingPathComponent("\(name).png")
+        return NSImage(contentsOf: devURL)
     }
 
     @objc private func toggleAutocorrect() {
