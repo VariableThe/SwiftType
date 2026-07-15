@@ -46,7 +46,10 @@ final class SmartCorrectionEngineTests: XCTestCase {
         let typos: [String: String] = [
             "goign": "going",
             "Whay": "What",
-            "Whar": "What"
+            "Whar": "What",
+            "thier": "their",
+            "becasue": "because",
+            "definitly": "definitely"
         ]
 
         for (typo, expected) in typos {
@@ -54,6 +57,13 @@ final class SmartCorrectionEngineTests: XCTestCase {
             XCTAssertNotNil(candidate, "Typo '\(typo)' should be corrected")
             XCTAssertEqual(candidate?.word, expected)
         }
+    }
+
+    func testExternalSpellcheckerCandidatesAreRanked() {
+        let candidate = engine.evaluate(word: "speling", threshold: 0.95, externalCandidates: ["spelling"])
+        XCTAssertNotNil(candidate)
+        XCTAssertEqual(candidate?.word, "spelling")
+        XCTAssertEqual(candidate?.sourceStage, "Stage0_AppleSpell")
     }
 
     func testCommonTypoExemptions() {

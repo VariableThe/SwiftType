@@ -92,6 +92,11 @@ final class SQLiteDatabaseTests: XCTestCase {
         XCTAssertEqual(recent.count, 2)
     }
 
+    func testRecordMissedCorrectionDoesNotThrow() throws {
+        try db.recordMissedCorrection(originalWord: "goign", suggestions: ["going", "going"])
+        try db.recordMissedCorrection(originalWord: "goign", suggestions: ["going"])
+    }
+
     func testStatisticsUpdating() throws {
         let initial = db.getStatistics()
         XCTAssertEqual(initial.correctionsToday, 0)

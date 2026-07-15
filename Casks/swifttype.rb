@@ -1,5 +1,5 @@
 cask "swifttype" do
-  version "1.0.7"
+  version "1.0.8"
   sha256 :no_check
 
   url "https://github.com/VariableThe/SwiftType/releases/download/v#{version}/SwiftType.zip"

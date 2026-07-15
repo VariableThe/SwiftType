@@ -154,7 +154,13 @@ public final class GlobalEventTap: @unchecked Sendable {
                 let spellingAssessment = spellingGate.assess(wordToEvaluate)
                 if let engine = self.engine, let settings = self.settings {
                     let threshold = correctionThreshold(base: settings.confidenceThreshold, spellingAssessment: spellingAssessment)
-                    let candidate = engine.evaluate(word: wordToEvaluate, contextBefore: contextHistory, threshold: threshold, isStartOfSentenceOrLine: startOfLineOrSentence)
+                    let candidate = engine.evaluate(
+                        word: wordToEvaluate,
+                        contextBefore: contextHistory,
+                        threshold: threshold,
+                        isStartOfSentenceOrLine: startOfLineOrSentence,
+                        externalCandidates: spellingAssessment.guesses
+                    )
                     let best = acceptedCandidate(candidate, spellingAssessment: spellingAssessment)
 
                     if let best {
@@ -197,7 +203,11 @@ public final class GlobalEventTap: @unchecked Sendable {
                 recordUncorrectedWord(wordToEvaluate, completionChar: firstChar)
 
                 if wordToEvaluate.count >= 2 {
-                    autoLearning?.observeUncorrectedWord(wordToEvaluate)
+                    if spellingAssessment.status == .misspelled {
+                        try? engine?.database.recordMissedCorrection(originalWord: wordToEvaluate, suggestions: spellingAssessment.guesses)
+                    } else {
+                        autoLearning?.observeUncorrectedWord(wordToEvaluate)
+                    }
                 }
             } else {
                 lock.lock()
@@ -245,7 +255,7 @@ public final class GlobalEventTap: @unchecked Sendable {
     }
 
     private func correctionThreshold(base: Double, spellingAssessment: SystemSpellingAssessment) -> Double {
-        switch spellingAssessment {
+        switch spellingAssessment.status {
         case .misspelled:
             return base
         case .valid, .notCheckable:
@@ -255,7 +265,7 @@ public final class GlobalEventTap: @unchecked Sendable {
 
     private func acceptedCandidate(_ candidate: CorrectionCandidate?, spellingAssessment: SystemSpellingAssessment) -> CorrectionCandidate? {
         guard let candidate else { return nil }
-        switch spellingAssessment {
+        switch spellingAssessment.status {
         case .misspelled:
             return candidate
         case .valid, .notCheckable:
@@ -273,23 +283,33 @@ public final class GlobalEventTap: @unchecked Sendable {
     }
 }
 
-private enum SystemSpellingAssessment {
+private enum SystemSpellingStatus {
     case misspelled
     case valid
     case notCheckable
 }
 
+private struct SystemSpellingAssessment {
+    let status: SystemSpellingStatus
+    let guesses: [String]
+}
+
 private final class SystemSpellingGate {
     private let checker = NSSpellChecker.shared
+    private let documentTag: Int
     private let lock = NSLock()
     private var cache = [String: SystemSpellingAssessment]()
     private var cacheOrder = [String]()
     private let maxCacheSize = 512
 
+    init() {
+        self.documentTag = NSSpellChecker.uniqueSpellDocumentTag()
+    }
+
     func assess(_ word: String) -> SystemSpellingAssessment {
         let clean = word.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard clean.count >= 2 else { return .notCheckable }
-        guard clean.allSatisfy({ $0.isLetter }) else { return .notCheckable }
+        guard clean.count >= 2 else { return SystemSpellingAssessment(status: .notCheckable, guesses: []) }
+        guard clean.allSatisfy({ $0.isLetter }) else { return SystemSpellingAssessment(status: .notCheckable, guesses: []) }
 
         let key = clean.lowercased()
         lock.lock()
@@ -300,7 +320,19 @@ private final class SystemSpellingGate {
         lock.unlock()
 
         let nsRange = checker.checkSpelling(of: clean, startingAt: 0)
-        let assessment: SystemSpellingAssessment = (nsRange.location != NSNotFound && nsRange.length > 0) ? .misspelled : .valid
+        let isMisspelled = nsRange.location != NSNotFound && nsRange.length > 0
+        let guesses: [String]
+        if isMisspelled {
+            guesses = checker.guesses(
+                forWordRange: NSRange(location: 0, length: (clean as NSString).length),
+                in: clean,
+                language: nil,
+                inSpellDocumentWithTag: documentTag
+            ) ?? []
+        } else {
+            guesses = []
+        }
+        let assessment = SystemSpellingAssessment(status: isMisspelled ? .misspelled : .valid, guesses: guesses)
 
         lock.lock()
         cache[key] = assessment

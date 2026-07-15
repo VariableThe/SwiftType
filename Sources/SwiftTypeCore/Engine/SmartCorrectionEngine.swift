@@ -114,7 +114,7 @@ public final class SmartCorrectionEngine: @unchecked Sendable {
 
     /// Main correction evaluation entrypoint ($O(1)$ or sub-5ms latency).
     /// Evaluates input word through all registered correction stages and returns the best candidate if its confidence exceeds threshold.
-    public func evaluate(word: String, contextBefore: [String] = [], threshold: Double = 0.95, isStartOfSentenceOrLine: Bool = false) -> CorrectionCandidate? {
+    public func evaluate(word: String, contextBefore: [String] = [], threshold: Double = 0.95, isStartOfSentenceOrLine: Bool = false, externalCandidates: [String] = []) -> CorrectionCandidate? {
         prepareIndexIfNeeded()
         let cleanWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanWord.isEmpty else { return nil }
@@ -132,8 +132,8 @@ public final class SmartCorrectionEngine: @unchecked Sendable {
             }
         }
 
-        // Run through stages
-        var candidates = [CorrectionCandidate]()
+        // Seed candidates from system spellchecker guesses or other caller-provided sources.
+        var candidates = externalCandidatesForRanking(externalCandidates, input: cleanWord)
         for stage in stages {
             candidates = stage.process(input: cleanWord, contextBefore: contextBefore, currentCandidates: candidates, engine: self)
             
@@ -159,6 +159,31 @@ public final class SmartCorrectionEngine: @unchecked Sendable {
             return best
         }
         return nil
+    }
+
+    private func externalCandidatesForRanking(_ words: [String], input: String) -> [CorrectionCandidate] {
+        var candidates = [CorrectionCandidate]()
+        let lowerInput = input.lowercased()
+        var seen = Set<String>()
+
+        for word in words {
+            let clean = word.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = clean.lowercased()
+            guard !clean.isEmpty, lower != lowerInput, !seen.contains(lower) else { continue }
+            seen.insert(lower)
+
+            let distance = SymSpellEngine.damerauLevenshteinDistance(lowerInput, lower)
+            candidates.append(
+                CorrectionCandidate(
+                    word: clean,
+                    confidence: 0.82,
+                    editDistance: distance,
+                    sourceStage: "Stage0_AppleSpell"
+                )
+            )
+        }
+
+        return candidates
     }
 
     // MARK: - Context / Bigram Helper
@@ -284,6 +309,11 @@ public struct RapidRankingStage: CorrectionStage {
             if userCount > 0 {
                 let userBoost = min(0.20, log10(Double(userCount + 1)) * 0.06)
                 confidence += userBoost
+            }
+
+            // 4. System spellchecker suggestions are strong evidence once macOS has marked the token wrong.
+            if candidate.sourceStage == "Stage0_AppleSpell" {
+                confidence += 0.12
             }
 
             // Cap confidence at 0.99 for non-zero edit distance

@@ -124,7 +124,33 @@ public final class BuiltinDictionaries: @unchecked Sendable {
         let words: [String: Int] = [
             "sure": 1800,
             "second": 1200,
-            "going": 1500
+            "going": 1500,
+            "being": 1400, "doing": 1350, "having": 1300, "getting": 1250, "making": 1200,
+            "really": 1200, "already": 1150, "always": 1100, "almost": 1050, "anything": 1000,
+            "something": 1000, "nothing": 950, "everything": 950, "someone": 900, "everyone": 900,
+            "another": 900, "through": 875, "though": 850, "thought": 825, "without": 800,
+            "within": 775, "between": 750, "against": 725, "around": 700, "before": 675,
+            "after": 650, "again": 625, "because": 1200, "while": 600, "where": 575,
+            "which": 1100, "what": 1600, "when": 1500, "why": 900, "who": 900,
+            "whose": 500, "could": 1000, "should": 1000, "would": 1000, "might": 800,
+            "their": 1100, "there": 1100, "they": 1000, "then": 950, "than": 900,
+            "these": 850, "those": 825, "your": 1000, "about": 1000,
+            "actually": 850, "probably": 800, "definitely": 900, "different": 800, "important": 750,
+            "possible": 700, "problem": 675, "question": 650, "answer": 625, "example": 600,
+            "system": 575, "software": 550, "computer": 525, "keyboard": 500, "sentence": 475,
+            "correct": 700, "correction": 650, "changed": 500, "working": 600, "typing": 550,
+            "language": 500, "english": 475, "people": 700, "person": 600, "place": 550,
+            "thing": 650, "things": 625, "first": 800, "last": 700, "next": 675,
+            "better": 700, "best": 650, "good": 900, "great": 700, "small": 600,
+            "large": 550, "long": 650, "short": 550, "right": 800, "wrong": 700,
+            "high": 600, "low": 500, "same": 800, "such": 700, "much": 750,
+            "many": 750, "most": 725, "more": 900, "less": 525, "least": 500,
+            "still": 700, "also": 800, "just": 900, "even": 800, "only": 850,
+            "well": 750, "very": 850, "every": 700, "each": 650, "both": 625,
+            "under": 600, "over": 600, "into": 700, "from": 1000, "with": 1200,
+            "using": 800, "called": 575, "found": 550, "write": 650, "written": 550,
+            "read": 600, "learn": 550, "build": 525, "built": 500, "open": 575,
+            "close": 500, "start": 650, "stop": 550, "press": 500, "allow": 475
         ]
         for (w, f) in words {
             try db.insertWord(w, dictionary: DictionaryCategory.english.rawValue, frequency: f)

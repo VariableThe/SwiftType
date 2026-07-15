@@ -193,6 +193,15 @@ public final class SQLiteDatabase: @unchecked Sendable {
         );
         CREATE INDEX IF NOT EXISTS idx_history_timestamp ON History(timestamp DESC);
 
+        CREATE TABLE IF NOT EXISTS MissedCorrections (
+            word TEXT PRIMARY KEY,
+            suggestions TEXT,
+            count INTEGER DEFAULT 1,
+            first_seen REAL NOT NULL,
+            last_seen REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_missed_last_seen ON MissedCorrections(last_seen DESC);
+
         CREATE TABLE IF NOT EXISTS Settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -433,6 +442,23 @@ public final class SQLiteDatabase: @unchecked Sendable {
             ))
         }
         return results
+    }
+
+    // MARK: - Missed Corrections
+    public func recordMissedCorrection(originalWord: String, suggestions: [String] = [], timestamp: TimeInterval = Date().timeIntervalSince1970) throws {
+        let clean = originalWord.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !clean.isEmpty else { return }
+        let uniqueSuggestions = Array(NSOrderedSet(array: suggestions.map { $0.lowercased() })).compactMap { $0 as? String }
+        let suggestionText = uniqueSuggestions.prefix(8).joined(separator: "\u{1F}")
+        let sql = """
+        INSERT INTO MissedCorrections (word, suggestions, count, first_seen, last_seen)
+        VALUES (?, ?, 1, ?, ?)
+        ON CONFLICT(word) DO UPDATE SET
+            suggestions = excluded.suggestions,
+            count = count + 1,
+            last_seen = excluded.last_seen;
+        """
+        try runQuery(sql, bindings: [clean, suggestionText, timestamp, timestamp])
     }
 
     // MARK: - Statistics
