@@ -1,5 +1,5 @@
 cask "swifttype" do
-  version "1.0.5"
+  version "1.0.6"
   sha256 :no_check
 
   url "https://github.com/VariableThe/SwiftType/releases/download/v#{version}/SwiftType.zip"
@@ -12,6 +12,11 @@ cask "swifttype" do
   app "SwiftType.app"
 
   postflight do
+    # Clear stale Accessibility trust records after Homebrew replaces the app bundle during upgrades
+    system_command "tccutil",
+                   args: ["reset", "Accessibility", "com.swifttype.app"],
+                   sudo: false
+
     # Clear macOS quarantine attribute so Gatekeeper allows running the locally/CI-built application without warning
     system_command "xattr",
                    args: ["-cr", "#{appdir}/SwiftType.app"],
