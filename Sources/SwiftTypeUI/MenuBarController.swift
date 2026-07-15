@@ -147,17 +147,19 @@ public final class MenuBarController: NSObject {
     }
 
     @objc public func openDashboard() {
+        statistics.refresh()
         if dashboardWindow == nil {
             let view = StatisticsDashboardView(statistics: statistics)
             let controller = NSHostingController(rootView: view)
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 620, height: 500),
+                contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
             )
             window.title = "SwiftType Performance Dashboard"
             window.contentViewController = controller
+            window.minSize = NSSize(width: 620, height: 500)
             window.center()
             window.isReleasedWhenClosed = false
             self.dashboardWindow = window

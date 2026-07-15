@@ -26,25 +26,24 @@ public final class AccessibilityCoordinator: @unchecked Sendable {
         return trusted
     }
 
-    /// Attempts to replace the just-completed word (`originalLength` characters before `completionChar`)
-    /// with `correctedWord` instantaneously while preserving the cursor position and completion trigger.
-    public func replaceWordInstantaneous(originalLength: Int, correctedWord: String, completionChar: String, useSimulatedKeystrokes: Bool = true) -> Bool {
+    /// Attempts to replace the just-completed word with `correctedWord` while preserving the completion trigger.
+    public func replaceWordInstantaneous(originalLength: Int, correctedWord: String, completionChar: String, removeCompletionChar: Bool = false, useSimulatedKeystrokes: Bool = true) -> Bool {
         guard isTrusted else { return false }
 
         // Try direct AXUIElement text replacement if supported by the active application
-        if tryDirectAXReplacement(originalLength: originalLength, correctedWord: correctedWord, completionChar: completionChar) {
+        if tryDirectAXReplacement(originalLength: originalLength, correctedWord: correctedWord, completionChar: completionChar, removeCompletionChar: removeCompletionChar) {
             return true
         }
 
         // Fallback to high-speed Quartz CGEvent backspace and string posting
         if useSimulatedKeystrokes {
-            return replaceViaSimulatedKeystrokes(originalLength: originalLength, correctedWord: correctedWord, completionChar: completionChar)
+            return replaceViaSimulatedKeystrokes(originalLength: originalLength, correctedWord: correctedWord, completionChar: completionChar, removeCompletionChar: removeCompletionChar)
         }
         return false
     }
 
     // MARK: - Direct AXUIElement Replacement
-    private func tryDirectAXReplacement(originalLength: Int, correctedWord: String, completionChar: String) -> Bool {
+    private func tryDirectAXReplacement(originalLength: Int, correctedWord: String, completionChar: String, removeCompletionChar: Bool) -> Bool {
         let systemWide = AXUIElementCreateSystemWide()
         var focusedElement: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement)
@@ -68,8 +67,7 @@ public final class AccessibilityCoordinator: @unchecked Sendable {
             let rangeValue = rawRangeValue as! AXValue
             var range = CFRange()
             if let rangeType = AXValueType(rawValue: kAXValueCFRangeType), AXValueGetValue(rangeValue, rangeType, &range) {
-                // If cursor is right after the completion char (range.location >= originalLength + completionChar.count)
-                let totalRemove = originalLength + completionChar.count
+                let totalRemove = originalLength + (removeCompletionChar ? completionChar.count : 0)
                 if range.location >= totalRemove {
                     var valueRef: CFTypeRef?
                     if AXUIElementCopyAttributeValue(axElement, kAXValueAttribute as CFString, &valueRef) == .success,
@@ -97,11 +95,10 @@ public final class AccessibilityCoordinator: @unchecked Sendable {
     }
 
     // MARK: - Quartz Simulated Keystroke Replacement
-    private func replaceViaSimulatedKeystrokes(originalLength: Int, correctedWord: String, completionChar: String) -> Bool {
+    private func replaceViaSimulatedKeystrokes(originalLength: Int, correctedWord: String, completionChar: String, removeCompletionChar: Bool) -> Bool {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
 
-        // We need to backspace: originalLength + completionChar.count times
-        let backspacesNeeded = originalLength + completionChar.count
+        let backspacesNeeded = originalLength + (removeCompletionChar ? completionChar.count : 0)
         for _ in 0..<backspacesNeeded {
             // kVK_Delete = 0x33
             if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: true),

@@ -49,6 +49,7 @@ public final class UndoManagerService: @unchecked Sendable {
             originalLength: item.correctedWord.count,
             correctedWord: item.originalWord,
             completionChar: item.completionChar,
+            removeCompletionChar: true,
             useSimulatedKeystrokes: true
         )
 

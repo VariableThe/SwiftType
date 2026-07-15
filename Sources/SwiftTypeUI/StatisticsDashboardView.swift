@@ -64,7 +64,10 @@ public struct StatisticsDashboardView: View {
                 Spacer()
             }
             .padding(24)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .frame(minWidth: 620, minHeight: 500)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func formattedTimeSaved(seconds: Double) -> String {
@@ -105,7 +108,8 @@ private struct StatCard: View {
                 .foregroundColor(.secondary)
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.1)))
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
     }
 }
 
