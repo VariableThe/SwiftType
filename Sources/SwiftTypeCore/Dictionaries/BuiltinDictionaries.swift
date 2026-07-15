@@ -123,7 +123,8 @@ public final class BuiltinDictionaries: @unchecked Sendable {
     private func seedEnglishSupplements() throws {
         let words: [String: Int] = [
             "sure": 1800,
-            "second": 1200
+            "second": 1200,
+            "going": 1500
         ]
         for (w, f) in words {
             try db.insertWord(w, dictionary: DictionaryCategory.english.rawValue, frequency: f)

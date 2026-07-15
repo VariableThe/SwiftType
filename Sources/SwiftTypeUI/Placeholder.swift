@@ -4,5 +4,5 @@ import SwiftTypeCore
 import SwiftTypeSystem
 
 public enum UIPlaceholder {
-    public static let version = "1.0.6"
+    public static let version = "1.0.7"
 }

@@ -45,7 +45,10 @@ public final class KeyboardModel: @unchecked Sendable {
         "apparant": "apparent",
         "freind": "friend",
         "govment": "government",
-        "happend": "happened"
+        "happend": "happened",
+        "goign": "going",
+        "whay": "what",
+        "whar": "what"
     ]
 
     public init(layout: KeyboardLayoutType = .qwerty) {

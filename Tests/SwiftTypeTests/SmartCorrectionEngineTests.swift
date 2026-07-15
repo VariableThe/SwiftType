@@ -42,6 +42,20 @@ final class SmartCorrectionEngineTests: XCTestCase {
         XCTAssertEqual(candidate?.word, "Second")
     }
 
+    func testCommonMisspellingsFlaggedBySystemSpellchecker() {
+        let typos: [String: String] = [
+            "goign": "going",
+            "Whay": "What",
+            "Whar": "What"
+        ]
+
+        for (typo, expected) in typos {
+            let candidate = engine.evaluate(word: typo, threshold: 0.95)
+            XCTAssertNotNil(candidate, "Typo '\(typo)' should be corrected")
+            XCTAssertEqual(candidate?.word, expected)
+        }
+    }
+
     func testCommonTypoExemptions() {
         let typos: [String: String] = [
             "teh": "the",
