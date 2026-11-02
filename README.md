@@ -5,15 +5,14 @@
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)](https://swift.org)
 [![Platform macOS](https://img.shields.io/badge/macOS-15.0%2B-000000?style=flat-square&logo=apple)](https://www.apple.com/macos/)
 [![License MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat-square)]()
 
-SwiftType is a native, privacy-first macOS menu bar application engineered to provide instantaneous ($O(1)$) system-wide autocorrect comparable to modern smartphone keyboards (such as iOS and Gboard), but optimized for developers, technical writers, and power users on desktop macOS.
+SwiftType is a native, privacy-first macOS menu bar application for system-wide autocorrect, aimed at developers, technical writers, and power users. Its correction pipeline combines exact dictionary matching, a SymSpell delete index, bounded edit-distance checks, and a BK-tree fallback before ranking candidates. Performance varies with the dictionary, candidate set, and host machine; this repository does not publish a latency benchmark or guarantee.
 
 ---
 
 ## ✨ Features
 
-- **⚡️ Instantaneous Latency (< 5ms)**: Powered by a hybrid **Symmetric Delete (`SymSpell`)** $O(1)$ dictionary lookup and a **Burkhard-Keller (`BK-Tree`)** metric space engine.
+- **⚡️ Candidate Generation and Ranking**: Combines exact dictionary matching, a SymSpell delete index, and bounded-distance BK-tree search before ranking correction candidates.
 - **🔒 Privacy-First & 100% Offline**: All keystroke monitoring, typo correction, and statistical learning run entirely locally on your machine. **Zero network calls. Zero telemetry.**
 - **💻 Technical Vocabulary Modules**: Includes specialized dictionaries for:
   - **Programming & CLI**: `Swift`, `Rust`, `Python`, `Go`, `Docker`, `Git`, `Kubernetes`, `POSIX`
